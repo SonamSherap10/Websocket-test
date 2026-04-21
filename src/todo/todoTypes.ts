@@ -8,5 +8,5 @@ export enum Status{
 export interface Itodo{
     task: string,
     deadline : string,
-    stauts : Status
+    status : Status
 }
