@@ -3,9 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <title>To-Do List</title>
 </head>
-<body>
-    
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-md mx-auto bg-white shadow-lg rounded-lg overflow-hidden mt-16">
+        <div class="px-4 py-2">
+            <h1 class="text-gray-800 font-bold text-2xl uppercase">To-Do List</h1>
+        </div>
+        <form class="w-full max-w-sm mx-auto px-4 py-2">
+            <div class="flex items-center border-b-2 border-teal-500 py-2">
+                <input
+                    id="newTask"
+                    class="appearance-none bg-transparent border-none w-full text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none"
+                    type="text" placeholder="Add a task">
+                <input
+                    id="newDeadline"
+                    class="appearance-none bg-transparent border-none text-gray-700 mr-3 py-1 px-2 leading-tight focus:outline-none"
+                    type="date">
+                <button
+                    onclick="addTodo()"
+                    class="flex-shrink-0 bg-teal-500 hover:bg-teal-700 border-teal-500 hover:border-teal-700 text-sm border-4 text-white py-1 px-2 rounded"
+                    type="button">
+                    Add
+                </button>
+            </div>
+        </form>
+        <ul id="todoList" class="divide-y divide-gray-200 px-4"></ul>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-96">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">Update Task</h2>
+            <input
+                id="editTask"
+                class="w-full border border-gray-300 rounded px-3 py-2 mb-3 focus:outline-none focus:border-teal-500"
+                type="text" placeholder="Task name">
+            <input
+                id="editDeadline"
+                class="w-full border border-gray-300 rounded px-3 py-2 mb-3 focus:outline-none focus:border-teal-500"
+                type="date">
+            <select
+                id="editStatus"
+                class="w-full border border-gray-300 rounded px-3 py-2 mb-4 focus:outline-none focus:border-teal-500">
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+            </select>
+            <input type="hidden" id="editId">
+            <div class="flex justify-end gap-2">
+                <button
+                    onclick="closeModal()"
+                    class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded">
+                    Cancel
+                </button>
+                <button
+                    onclick="submitUpdate()"
+                    class="px-4 py-2 text-sm bg-teal-500 hover:bg-teal-700 text-white rounded">
+                    Update
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.emit("getTodo");
+
+        socket.on("responseTodo", (data) => {
+            const todos = data.alltodos || data.allTasks || [];
+            renderTodos(todos);
+        });
+
+        socket.on("errResponse", (data) => {
+            console.error("Error:", data);
+        });
+
+        function addTodo() {
+            const taskInput = document.getElementById("newTask");
+            const deadlineInput = document.getElementById("newDeadline");
+            const taskValue = taskInput.value.trim();
+            if (!taskValue) return;
+            socket.emit("addTodo", {
+                task: taskValue,
+                deadline: deadlineInput.value || new Date().toLocaleDateString(),
+                status: "pending"
+            });
+            taskInput.value = "";
+            deadlineInput.value = "";
+        }
+
+        function deleteTodo(id) {
+            socket.emit("deleteTodo", { id });
+        }
+
+        function openModal(id, task, deadline, status) {
+            document.getElementById("editId").value = id;
+            document.getElementById("editTask").value = task;
+            document.getElementById("editDeadline").value = deadline;
+            document.getElementById("editStatus").value = status;
+            const modal = document.getElementById("editModal");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+        }
+
+        function closeModal() {
+            const modal = document.getElementById("editModal");
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+        }
+
+        function submitUpdate() {
+            const id = document.getElementById("editId").value;
+            const status = document.getElementById("editStatus").value;
+            socket.emit("updateTodo", { id, status });
+            closeModal();
+        }
+
+        function renderTodos(todos) {
+            const list = document.getElementById("todoList");
+            list.innerHTML = "";
+            if (!todos || todos.length === 0) {
+                list.innerHTML = `<li class="py-4 text-center text-gray-400">No tasks yet</li>`;
+                return;
+            }
+            todos.forEach((todo) => {
+                list.innerHTML += `
+                    <li class="py-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    class="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+                                    ${todo.status === "completed" ? "checked" : ""}
+                                    onchange="updateTodo('${todo._id}', this.checked ? 'completed' : 'pending')">
+                                <label class="ml-3 block text-gray-900">
+                                    <span class="text-lg font-medium ${todo.status === 'completed' ? 'line-through text-gray-400' : ''}">${todo.task}</span>
+                                    <span class="text-sm font-light text-gray-500 block">${todo.deadline}</span>
+                                </label>
+                            </div>
+                            <div class="flex items-center gap-2 ml-4">
+                                <button
+                                    onclick="openModal('${todo._id}', '${todo.task}', '${todo.deadline}', '${todo.status}')"
+                                    class="text-teal-400 hover:text-teal-600 text-sm cursor-pointer">
+                                    Edit
+                                </button>
+                                <button
+                                    onclick="deleteTodo('${todo._id}')"
+                                    class="text-red-400 hover:text-red-600 text-sm cursor-pointer">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </li>`;
+            });
+        }
+
+        function updateTodo(id, status) {
+            socket.emit("updateTodo", { id, status });
+        }
+    </script>
 </body>
 </html>

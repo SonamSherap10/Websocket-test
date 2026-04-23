@@ -1,7 +1,17 @@
-import express from 'express'
-const app = express()
-import ("../src/todo/todoController.js")
+import express from 'express';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
-app.set("view engine","ejs")
+const app = express();
 
-export default app
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.set("views", path.join(__dirname, "views")); // ← remove the ../
+app.set("view engine", "ejs");
+ 
+app.get("/", (req, res ) => {
+    res.render("home");
+});
+
+export default app;

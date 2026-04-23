@@ -8,12 +8,26 @@ class todo{
     constructor(){
         this.io.on("connection",(socket)=>{
             console.log("socket connection has been established")
+            socket.on("getTodo",(data)=>{this.handleGetTodo(socket)})
             socket.on("addTodo",(data)=>this.handleAddTodo(socket,data))
             socket.on("deleteTodo",(data)=>{this.handleDeleteTodo(socket,data)})
             socket.on("updateTodo",(data)=>{this.handleUpdateTodo(socket,data)})
         })
        
     }
+
+    private async handleGetTodo(socket:Socket){
+        try {
+            const allTasks = await todoModel.find({status:Status.Pending});
+            socket.emit("responseTodo", { allTasks });
+        } catch (error) {
+            socket.emit("responseTodo", {
+                status: "error",
+                error
+            });
+        }
+    }
+
     private async handleAddTodo(socket:Socket,data:Itodo){
    try {
           const{task,deadline,status} =data
@@ -39,19 +53,19 @@ class todo{
               const {id} = data
         const deleteTodo = await todoModel.findByIdAndDelete(id)
         if(!deleteTodo){
-            socket.emit("todoResponse",{
+            socket.emit("responseTodo",{
                 status:"error",
                 message:"Cannot delete the task"
             })
             return;
         }
            const alltodos= await todoModel.find()
-         socket.emit("todoResponse",{
+         socket.emit("responseTodo",{
            message:"Deleted successfully ",
            alltodos
          })
           } catch (error) {
-            socket.emit("todoResponse",{
+            socket.emit("responseTodo",{
                 message:"Cannot delete the task",
                 error
             })
@@ -63,20 +77,20 @@ class todo{
              const{id,status}= data
          const update = await todoModel.findByIdAndUpdate(id,{status})
          if(!todo){
-            socket.emit("todoResponse",{
+            socket.emit("responseTodo",{
                 status:"error",
                 message:"todo not found"
             })
             return;
          }
           const alltodos= await todoModel.find({status:Status.Pending})
-         socket.emit("todoResponse",{
+         socket.emit("responseTodo",{
            message:"Updated successfully ",
            alltodos
          })
 
      } catch (error) {
-          socket.emit("todoResponse",{
+          socket.emit("responseTodo",{
                 error,
                 message:"error has occured "
             })
